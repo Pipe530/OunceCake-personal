@@ -1,6 +1,6 @@
 # OunceCake - Cellenseres
 
-Private variant of [ariankordi/OunceCake](https://github.com/ariankordi/OunceCake), based on [misshexa66/OunceCake](https://github.com/misshexa66/OunceCake). Upstream history, attribution and the GPL-2.0 license are retained.
+ variant of [ariankordi/OunceCake](https://github.com/ariankordi/OunceCake), based on [misshexa66/OunceCake](https://github.com/misshexa66/OunceCake). Upstream history, attribution and the GPL-2.0 license are retained.
 
 The upstream HTTP/WebDAV server exposes game ExeFS and RomFS and supports firmware/system-data exports. This variant adds installed native-title ELicense preparation, base-only views and raw NCA export.
 
