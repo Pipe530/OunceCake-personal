@@ -4,6 +4,9 @@
 
 The upstream HTTP/WebDAV server exposes game ExeFS and RomFS and supports firmware/system-data exports. This variant adds installed native-title ELicense preparation, base-only views and raw NCA export.
 
+Supports digital games, game cards, Switch 2 Editions, DLC and DLC updates. Every package (base, update, DLC) is mounted under `program/<index>/` with its ExeFS, RomFS, logo, control, manual, legal and meta content.
+(For NSO titles, make sure the title has been opened recently before you attempt to mount it, otherwise the mount will fail.)
+
 ## Requirements
 
 Use Node.js 22 or newer and an already held run from [our ns2jb variant](https://github.com/Cellenseres/ns2jb). No npm dependencies are needed. Keep SmileBASIC and the runner open while OunceCake is attached. OunceCake does not start a bootstrap; the upstream ns2jb acquisition uses temporary save files. Review the [console storage policy](docs/CONSOLE-ACCESS.md).

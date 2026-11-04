@@ -190,11 +190,15 @@ static int index_valid(Server* s) {
         if(n->type) {
             if(n->mount>=c->source_count)return 0;
             const Source* source=c->sources+n->mount;
-            if(!source->handle||source->kind>2||source->reserved||source->attributes>15||
-                (source->kind!=2&&source->attributes)||n->offset+n->size<n->offset)return 0;
-            if(source->kind!=1&&n->offset+n->size>source->size)return 0;
+            if(!source->handle||source->kind>3||source->reserved||source->attributes>15||source->proxy_type>6||
+                (source->kind<2&&(source->attributes||source->proxy_type)))return 0;
+            if(source->kind==0||source->kind==2) {
+                if(n->offset+n->size<n->offset||n->offset+n->size>source->size)return 0;
+            }
             if(source->kind&&(!string_valid(s,n->source_path,0x300)||
-                s->strings[n->source_path]!=(source->kind==1?'/':'@')))return 0;
+                s->strings[n->source_path]!=(source->kind==2?'@':'/')))return 0;
+            if(source->kind==3&&(n->offset>0xffffffffULL||!string_valid(s,(u32)n->offset,0x300)||
+                s->strings[n->offset]!='@'))return 0;
         }
     }
     return 1;
@@ -442,15 +446,27 @@ static u8* response(ServerConfig* c,u32* moved) {
     if(p[at+2]) {c->native_result=p[at+2];return 0;}
     return (u8*)(p+at+4);
 }
-static u32 open_source(Server* s,const Node* n) {
-    ServerConfig* c=s->c;const char* filename=s->strings+n->source_path;u8* name=c->ipc_buffer+4096;
-    const Source* source=c->sources+n->mount;
+static u32 open_path(ServerConfig* c,u32 parent,u32 command,const void* input,u32 input_bytes,const char* filename) {
+    u8* name=c->ipc_buffer+4096;
     u64 bytes=length(filename);if(bytes>0x300)return 0;memset(name,0,0x301);memcpy(name,filename,bytes);
-    u32 input[2]={source->kind==1?1:source->attributes,6};
-    packet(c,source->kind==1?8:206,input,source->kind==1?4:8,0,0);u32* p=(u32*)c->ipc_buffer;u64 a=(u64)name;
+    packet(c,command,input,input_bytes,0,0);u32* p=(u32*)c->ipc_buffer;u64 a=(u64)name;
     p[0]=4|1u<<16;p[2]=(0x301u<<16)|((u32)((a>>36)&7)<<6)|((u32)((a>>32)&15)<<12);p[3]=(u32)a;
-    c->native_result=ipc_call(c,source->handle);if(c->native_result)return 0;
+    c->native_result=ipc_call(c,parent);if(c->native_result)return 0;
     u32 handle;if(!response(c,&handle)||!handle)return 0;
+    return handle;
+}
+static u32 open_source(Server* s,const Node* n) {
+    ServerConfig* c=s->c;const Source* source=c->sources+n->mount;
+    u32 parent=source->handle;
+    if(source->kind==3) {
+        u64 input[2]={source->attributes|((u64)source->proxy_type<<32),source->program_id};
+        parent=open_path(c,parent,10,input,16,s->strings+n->offset);
+        if(!parent)return 0;
+    }
+    u32 input[2]={source->kind==2?source->attributes:1,source->proxy_type};
+    u32 handle=open_path(c,parent,source->kind==2?206:8,input,source->kind==2?8:4,s->strings+n->source_path);
+    if(source->kind==3)c->functions->close_handle(parent);
+    if(!handle)return 0;
     if(source->kind==2) {
         packet(c,4,0,0,0,0);c->native_result=ipc_call(c,handle);
         u32 moved=0;u8* out=c->native_result?0:response(c,&moved);
@@ -477,7 +493,7 @@ static int stream_file(Client* p,const Node* n,u32 handle,u64 start,u64 end) {
     if(source->kind)s->cache_source=NONE;
     while(ok&&offset<end&&!c->stop) {
         u64 count,inside=0;
-        if(source->kind==1) {
+        if(source->kind==1||source->kind==3) {
             count=minimum(end-offset,c->data_bytes);
             ok=read_storage(s,handle,1,offset,(u32)count);
         } else {

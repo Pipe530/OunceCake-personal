@@ -52,6 +52,7 @@ function pathRequest(command, input, address, length = 0x301) {
 const names = new Map([
   [0x000a05, 'ContentNotFound'],
   [0x000e05, 'ContentMetaNotFound'],
+  [0x01e005, 'InvalidContentMetaKey'],
   [0x339a02, 'ProgramInfoNotFound'],
   [0x07d202, 'PartitionNotFound'],
   [0x07d802, 'NcaExternalKeyNotFound'],
