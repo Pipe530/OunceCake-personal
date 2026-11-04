@@ -3,7 +3,7 @@
 const http = require('node:http');
 const crypto = require('node:crypto');
 const path = require('node:path');
-const { exec } = require('node:child_process');
+const { exec, execFile } = require('node:child_process');
 const { titleId, withCleanup } = require('./engine/protocol.cjs');
 const { attachGame } = require('./engine/session.cjs');
 const { discoverGames } = require('./engine/content.cjs');
@@ -168,7 +168,9 @@ pre{background:#0004;padding:.6rem;max-height:260px;overflow:auto;white-space:pr
 
 <div class="card" id="connectCard">
   <label>Run directory (from ns2jb)<input type="text" id="run" placeholder="C:\\path\\to\\run"></label>
+  <button id="browseRun">Browse...</button>
   <button id="connect">Connect and list games</button>
+  <button id="quit">Quit OunceCake</button>
 </div>
 
 <div class="card" id="gamesCard" hidden>
@@ -187,6 +189,7 @@ pre{background:#0004;padding:.6rem;max-height:260px;overflow:auto;white-space:pr
   </div>
   <div id="ncaOpts" hidden>
     <label>Output folder<input type="text" id="out" value="nca-dump"></label>
+    <button id="browseOut">Browse...</button>
     <label><input type="checkbox" id="skipProgram"> Skip Program NCA</label>
   </div>
   <p id="selected">No game selected.</p>
@@ -273,6 +276,13 @@ async function poll() {
   } catch (e) { $('status').textContent = 'GUI server not reachable'; }
 }
 
+async function pick(inputId, title) {
+  const r = await api('browse', { title });
+  if (r.path) $(inputId).value = r.path;
+}
+$('browseRun').onclick = () => pick('run', 'Select the ns2jb run folder');
+$('browseOut').onclick = () => pick('out', 'Select the output folder');
+$('quit').onclick = async () => { await api('quit'); document.body.textContent = 'OunceCake has exited. You can close this tab.'; };
 $('connect').onclick = () => api('connect', { run: $('run').value.trim() });
 $('start').onclick = () => {
   const nca = document.querySelector('input[name=mode]:checked').value === 'nca';
@@ -287,6 +297,20 @@ for (const r of document.querySelectorAll('input[name=mode]')) r.onchange = () =
 };
 setInterval(poll, 1000); poll();
 </script></body></html>`;
+
+function browse(title) {
+  if (process.platform !== 'win32') return Promise.reject(new Error('Folder picker is only available on Windows'));
+  const script = "Add-Type -AssemblyName System.Windows.Forms;" +
+    "$d=New-Object System.Windows.Forms.FolderBrowserDialog;" +
+    "$d.Description=$env:OC_TITLE;" +
+    "$f=New-Object System.Windows.Forms.Form;$f.TopMost=$true;" +
+    "if($d.ShowDialog($f) -eq 'OK'){[Console]::Out.Write($d.SelectedPath)}";
+  return new Promise((resolve, reject) => {
+    execFile('powershell', ['-NoProfile', '-STA', '-Command', script],
+      { env: { ...process.env, OC_TITLE: String(title || 'Select a folder').slice(0, 100) } },
+      (error, stdout) => (error ? reject(error) : resolve(stdout.trim())));
+  });
+}
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -324,6 +348,12 @@ function createGuiServer(port) {
         if (req.url === '/api/connect') await connect(body);
         else if (req.url === '/api/start') await start(body);
         else if (req.url === '/api/stop') await stop();
+        else if (req.url === '/api/browse') return send(res, 200, { path: await browse(body.title) });
+        else if (req.url === '/api/quit') {
+          send(res, 200, { ok: true });
+          setTimeout(() => process.kill(process.pid, 'SIGINT'), 100);
+          return;
+        }
         else return send(res, 404, { error: 'Not found' });
         return send(res, 200, publicState());
       }

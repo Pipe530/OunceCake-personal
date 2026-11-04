@@ -12,11 +12,18 @@ Use Node.js 22 or newer and an already held run from [our ns2jb variant](https:/
 
 ### GUI
 
-```sh
-node gui.cjs [--port 8765] [--no-open]
-```
+Double-click `OunceCake.bat`. If Node.js isn't found, it offers to install Node.js LTS with `winget`; otherwise it opens the GUI in your browser automatically. No command line is needed beyond that double-click.
 
-Opens a local page (127.0.0.1 only) where you enter the held run directory, pick a game from a filterable list, and either serve it (port, base-only) or export raw NCAs (output folder, skip Program). Logs and the server address are shown on the page. Same requirements as the CLI.
+The page lets you:
+- **Browse...** to pick the held run directory and the NCA export output folder with a Windows folder dialog, instead of typing a path.
+- Connect and pick a game from a filterable list.
+- Either serve it (port, base-only) or export raw NCAs (output folder, skip Program).
+- Watch logs and the server address on the page.
+- Click **Quit OunceCake** to stop the server and close the attachment, instead of using Ctrl-C.
+
+A small console window stays open behind the browser tab while the GUI runs; closing it also stops OunceCake.
+
+Prefer the command line? Run `node gui.cjs [--port 8765] [--no-open]` directly instead of the `.bat` file. Same requirements as the CLI below.
 
 ### CLI
 
