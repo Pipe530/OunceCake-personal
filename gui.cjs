@@ -9,6 +9,7 @@ const { attachGame } = require('./engine/session.cjs');
 const { discoverGames } = require('./engine/content.cjs');
 const { prepareGame } = require('./engine/mounts.cjs');
 const { dumpAllNcas } = require('./engine/nca-dump.cjs');
+const { dumpInventory } = require('./engine/inventory.cjs');
 const { deployServer, readImage } = require('./engine/server.cjs');
 
 const storageNames = { 2: 'Game card', 4: 'Internal', 5: 'SD' };
@@ -134,6 +135,36 @@ async function start(options) {
   })();
 }
 
+async function inventory(options) {
+  if (state.phase !== 'ready') throw new Error('Connect first');
+  const out = path.resolve(options.out || 'content-inventory');
+  const game = options.title ? titleId(options.title) : undefined;
+  state.phase = 'working';
+  state.message = '';
+  cancellation = new AbortController();
+  const shouldStop = () => cancellation.signal.aborted;
+  (async () => {
+    try {
+      const result = await dumpInventory({ attachment, outDir: out, shouldStop, game, includeSystem: Boolean(options.includeSystem) });
+      console.log('Inventory: ' + result.records.length + ' content records');
+      console.log('Saved: ' + result.textPath);
+      console.log('Saved: ' + result.jsonPath);
+      state.message = 'Inventory saved to ' + out;
+      state.phase = 'ready';
+    } catch (error) {
+      if (cancellation.signal.aborted) {
+        await closeAttachment().catch(() => {});
+        state.phase = 'idle';
+        state.games = [];
+      } else {
+        await closeAttachment().catch(() => {});
+        state.games = [];
+        fail(error);
+      }
+    }
+  })();
+}
+
 async function stop() {
   if (!cancellation) return;
   cancellation.abort();
@@ -195,6 +226,12 @@ pre{background:#0004;padding:.6rem;max-height:260px;overflow:auto;white-space:pr
   <p id="selected">No game selected.</p>
   <button id="start" disabled>Start</button>
   <button id="cancel">Disconnect</button>
+  <hr>
+  <label>Content inventory output folder<input type="text" id="invOut" value="content-inventory"></label>
+  <button id="browseInv">Browse...</button>
+  <button id="inventoryGame" disabled>List content for selected game</button>
+  <button id="inventory">List all installed content</button>
+  <label><input type="checkbox" id="invSystem"> Include system storage (all-content list only; slower)</label>
 </div>
 
 <div class="card" id="workCard" hidden>
@@ -241,6 +278,7 @@ function renderGames(games) {
       selected = g.title;
       $('selected').textContent = 'Selected: ' + g.name + ' [' + g.title.toUpperCase() + ']';
       $('start').disabled = false;
+      $('inventoryGame').disabled = false;
       lastGames = '';
       renderGames(games);
     };
@@ -257,7 +295,7 @@ async function poll() {
     $('gamesCard').hidden = p !== 'ready';
     $('optionsCard').hidden = p !== 'ready';
     $('workCard').hidden = !(p === 'working' || p === 'serving' || p === 'connecting');
-    if (p !== 'ready' && lastPhase === 'ready') { selected = null; lastGames = ''; $('start').disabled = true; $('selected').textContent = 'No game selected.'; }
+    if (p !== 'ready' && lastPhase === 'ready') { selected = null; lastGames = ''; $('start').disabled = true; $('inventoryGame').disabled = true; $('selected').textContent = 'No game selected.'; }
     lastPhase = p;
     const labels = { idle: 'Idle', connecting: 'Connecting and reading the game list...', ready: 'Connected. Pick a game.', working: 'Working... (updates can take a long time)', serving: 'Serving', error: 'Error' };
     const st = $('status');
@@ -282,6 +320,9 @@ async function pick(inputId, title) {
 }
 $('browseRun').onclick = () => pick('run', 'Select the ns2jb run folder');
 $('browseOut').onclick = () => pick('out', 'Select the output folder');
+$('browseInv').onclick = () => pick('invOut', 'Select the output folder');
+$('inventory').onclick = () => api('inventory', { out: $('invOut').value, includeSystem: $('invSystem').checked });
+$('inventoryGame').onclick = () => api('inventory', { out: $('invOut').value, title: selected });
 $('quit').onclick = async () => { await api('quit'); document.body.textContent = 'OunceCake has exited. You can close this tab.'; };
 $('connect').onclick = () => api('connect', { run: $('run').value.trim() });
 $('start').onclick = () => {
@@ -347,6 +388,7 @@ function createGuiServer(port) {
         const body = await readBody(req);
         if (req.url === '/api/connect') await connect(body);
         else if (req.url === '/api/start') await start(body);
+        else if (req.url === '/api/inventory') await inventory(body);
         else if (req.url === '/api/stop') await stop();
         else if (req.url === '/api/browse') return send(res, 200, { path: await browse(body.title) });
         else if (req.url === '/api/quit') {

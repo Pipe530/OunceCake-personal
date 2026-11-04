@@ -29,6 +29,10 @@ Open the server address shown on the page. `/base/exefs/` contains CodeFS files;
 
 ELicense preparation uses the content's FS606 RightsId and installed owner accounts. The rights context stays open throughout serving. No separate registration script or plaintext titlekey is needed. A prior FS206 RomFS read succeeded; complete native-title ExeFS and HTTP serving still require the [manual checks](docs/VALIDATION.md).
 
+## List all installed content
+
+After connecting, use **List content for selected game** (that game's base, updates, DLC and Switch 2 variants) or **List all installed content** (everything; system storage only if ticked) in the GUI. It reads the console's content database and writes a `.txt` and `.json` file to the chosen folder. Each record shows the title ID, version, meta type, owner application (for updates and DLC) and every NCA it contains (type, ID, size), including content types the file browser doesn't mount.
+
 ## Export raw NCAs
 
 Choose **Export raw NCAs** in the GUI and set the output folder. Tick **Skip Program NCA** to omit the Program NCA. These files remain encrypted. Existing output files are preserved; incomplete captures have a `.partial` suffix. Quitting stops before the next read and releases owned handles.
